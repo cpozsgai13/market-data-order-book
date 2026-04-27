@@ -1,0 +1,31 @@
+#  Results with no CACHE_LINE alignment
+ADD STATS: 
+        COUNT: 21
+        MIN: 324
+        MAX: 12648
+        MEAN: 3814
+        MDN: 4312
+--------------------------------------------------
+UPDATE STATS: 
+        COUNT: 1
+        MIN: 3920
+        MAX: 3920
+        MEAN: 3920
+        MDN: 3920
+--------------------------------------------------
+
+# Results with CACHE_LINE alignment on same data set
+
+ADD STATS: 
+        COUNT: 21
+        MIN: 352
+        MAX: 20556
+        MEAN: 4096
+        MDN: 4592
+--------------------------------------------------
+UPDATE STATS: 
+        COUNT: 1
+        MIN: 3752
+        MAX: 3752
+        MEAN: 3752
+        MDN: 3752
