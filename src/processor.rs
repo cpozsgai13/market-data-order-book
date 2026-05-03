@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::thread;
 
 use crate::exchange_order_book::ExchangeOrderBook;
-use crate::messages::CoreMessage;
+use crate::messages::{CoreMessage, Price};
 use crate::perf_counter::{PerfCounter, PerfMeta};
 use crate::ring_buffer::SpscConsumer;
 use crate::messages::Packet;
@@ -102,7 +102,7 @@ fn process_packet(
 }
 
 fn process_message(
-    msg:      CoreMessage,
+    msg:      CoreMessage<Price>,
     exchange: &mut ExchangeOrderBook,
     perf:     &mut Option<PerfCounter>,
 ) {

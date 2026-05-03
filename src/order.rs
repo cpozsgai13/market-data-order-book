@@ -3,28 +3,28 @@
 /// Mirrors `Order` from `Order.h` / `Order.cpp`.
 use std::sync::{Arc, Mutex};
 
-use crate::price::Price;
+// Price type is now generic; import the desired type in your module.
 use crate::types::{OrderId, OrderType, Quantity, Side, Timestamp};
 
 // ── Order ─────────────────────────────────────────────────────────────────────
 
 #[derive(Debug)]
-pub struct Order {
+pub struct Order<P> {
     order_type: OrderType,
     side: Side,
     order_id: OrderId,
-    price: Price,
+    price: P,
     initial_quantity: Quantity,
     remaining_quantity: Quantity,
     creation_time_ns: Timestamp,
 }
 
-impl Order {
+impl<P: Copy> Order<P> {
     pub fn new(
         order_type: OrderType,
         side: Side,
         order_id: OrderId,
-        price: Price,
+        price: P,
         quantity: Quantity,
         creation_time_ns: Timestamp,
     ) -> Self {
@@ -44,7 +44,7 @@ impl Order {
     #[inline] pub fn order_type(&self)          -> OrderType { self.order_type }
     #[inline] pub fn side(&self)                -> Side      { self.side }
     #[inline] pub fn order_id(&self)            -> OrderId   { self.order_id }
-    #[inline] pub fn price(&self)               -> Price     { self.price }
+    #[inline] pub fn price(&self)               -> P         { self.price }
     #[inline] pub fn initial_quantity(&self)    -> Quantity  { self.initial_quantity }
     #[inline] pub fn remaining_quantity(&self)  -> Quantity  { self.remaining_quantity }
     #[inline] pub fn creation_time(&self)       -> Timestamp { self.creation_time_ns }
@@ -75,21 +75,18 @@ impl Order {
 
 // ── Shared pointer alias ──────────────────────────────────────────────────────
 
-/// `Arc<Mutex<Order>>` — thread-safe shared ownership with interior mutability.
-/// This differs from the original C++ `shared_ptr<Order>` only in Rust's
-/// synchronization primitive choice so that the order book can move across
-/// worker threads safely.
-pub type OrderPtr = Arc<Mutex<Order>>;
+/// `Arc<Mutex<Order<P>>>` — thread-safe shared ownership with interior mutability.
+pub type OrderPtr<P> = Arc<Mutex<Order<P>>>;
 
-/// Convenience constructor that wraps a new `Order` in `Rc<RefCell<>>`.
-pub fn new_order_ptr(
+/// Convenience constructor that wraps a new `Order` in `Arc<Mutex<>>`.
+pub fn new_order_ptr<P: Copy>(
     order_type: OrderType,
     side: Side,
     order_id: OrderId,
-    price: Price,
+    price: P,
     quantity: Quantity,
     creation_time_ns: Timestamp,
-) -> OrderPtr {
+) -> OrderPtr<P> {
     Arc::new(Mutex::new(Order::new(
         order_type,
         side,

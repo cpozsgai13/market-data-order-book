@@ -4,6 +4,7 @@
 
 mod codec;
 mod config;
+mod precision_codec;
 mod exchange_order_book;
 mod messages;
 mod order;
@@ -12,6 +13,7 @@ mod order_queue;
 mod parser;
 mod perf_counter;
 mod price;
+mod price_trait;
 mod processor;
 mod ring_buffer;
 mod tcp_receiver;
@@ -27,7 +29,7 @@ use std::time::Duration;
 
 use config::Config;
 use exchange_order_book::ExchangeOrderBook;
-use messages::CoreMessage;
+use messages::{CoreMessage, Packet, Price};
 use perf_counter::PerfMeta;
 use ring_buffer::spsc_channel;
 
@@ -51,6 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn run_file_mode(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    type Msg = CoreMessage<Price>;
     let default_symbols = "../../C++/order-book/test/Symbols.txt";
     let default_data    = vec!["../../C++/order-book/test/AAPLOrders.txt".to_string()];
 
@@ -66,7 +69,7 @@ fn run_file_mode(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let mut cancel_count = 0usize;
 
     // Load symbols.
-    let sym_msgs = parser::load_messages(Path::new(&symbols_file))?;
+    let sym_msgs = parser::load_messages::<Price>(Path::new(&symbols_file))?;
     if sym_msgs.is_empty() {
         eprintln!("No symbol messages loaded from {}", symbols_file);
         std::process::exit(1);
@@ -82,7 +85,7 @@ fn run_file_mode(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 
     // Load order data files.
     for data_file in &data_files {
-        let msgs = parser::load_messages(Path::new(data_file))?;
+        let msgs = parser::load_messages::<Price>(Path::new(data_file))?;
         println!("Loaded {} message(s) from {}.", msgs.len(), data_file);
         for msg in msgs {
             match msg {
@@ -120,20 +123,20 @@ fn run_network_mode(config_path: &str) -> Result<(), std::io::Error> {
 
     // 1. Load and pack all messages into Packets.
     let mut packets = Vec::new();
-    let mut cur_pkt = messages::Packet::new();
+    let mut cur_pkt = Packet::new();
 
-    let messages = parser::load_messages(Path::new(&cfg.symbol_file))?;
+    let messages = parser::load_messages::<Price>(Path::new(&cfg.symbol_file))?;
     
     for msg in messages{
         if cur_pkt.len() >= codec::MESSAGES_PER_PACKET {
             packets.push(cur_pkt.clone());
-            cur_pkt = messages::Packet::new();
+            cur_pkt = Packet::new();
         }
         cur_pkt.push(msg);
     }
     for data_file in &cfg.data_files {
         println!("[DEBUG] Attempting to load data file: {}", data_file);
-        match parser::load_messages(Path::new(data_file)) {
+        match parser::load_messages::<Price>(Path::new(data_file)) {
             Ok(file_messages) => {
                 println!("[DEBUG] Loaded {} messages from {}", file_messages.len(), data_file);
                 if file_messages.is_empty() {
@@ -142,7 +145,7 @@ fn run_network_mode(config_path: &str) -> Result<(), std::io::Error> {
                 for msg in file_messages {
                     if cur_pkt.len() >= codec::MESSAGES_PER_PACKET {
                         packets.push(cur_pkt.clone());
-                        cur_pkt = messages::Packet::new();
+                        cur_pkt = Packet::new();
                     }
                     cur_pkt.push(msg);
                 }
@@ -162,7 +165,7 @@ fn run_network_mode(config_path: &str) -> Result<(), std::io::Error> {
     let processor_running = Arc::new(AtomicBool::new(true)); // For processor thread
 
     // 3. SPSC ring buffer (receiver → processor).
-    let (ring_producer, ring_consumer) = spsc_channel::<messages::Packet>(RING_BUFFER_SIZE);
+    let (ring_producer, ring_consumer) = spsc_channel::<Packet>(RING_BUFFER_SIZE);
     // Clone the consumer so main can check is_empty()
     let ring_consumer_for_proc = ring_consumer.clone();
 

@@ -1,27 +1,26 @@
 /// Trade representation — mirrors `Trade.h` / `Trade.cpp`.
 use std::fmt;
 
-use crate::price::Price;
 use crate::types::{OrderId, Quantity};
 
 // ── TradeSide ─────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
-pub struct TradeSide {
+pub struct TradeSide<P> {
     pub order_id: OrderId,
-    pub price: Price,
+    pub price: P,
     pub quantity: Quantity,
 }
 
 // ── Trade ─────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
-pub struct Trade {
-    pub bid_side: TradeSide,
-    pub ask_side: TradeSide,
+pub struct Trade<P> {
+    pub bid_side: TradeSide<P>,
+    pub ask_side: TradeSide<P>,
 }
 
-impl fmt::Display for Trade {
+impl<P: fmt::Display> fmt::Display for Trade<P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,

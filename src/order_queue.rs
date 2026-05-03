@@ -10,23 +10,22 @@
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
-use crate::order::OrderPtr;
 use crate::types::OrderId;
 
 // ── OrderQueue ────────────────────────────────────────────────────────────────
 
-pub struct OrderQueue {
+pub struct OrderQueue<P> {
     heap: BinaryHeap<Reverse<OrderId>>,
-    order_map: HashMap<OrderId, OrderPtr>,
+    order_map: HashMap<OrderId, crate::order::OrderPtr<P>>,
 }
 
-impl Default for OrderQueue {
+impl<P: Copy> Default for OrderQueue<P> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl OrderQueue {
+impl<P: Copy> OrderQueue<P> {
     pub fn new() -> Self {
         OrderQueue {
             heap: BinaryHeap::new(),
@@ -35,7 +34,7 @@ impl OrderQueue {
     }
 
     /// Insert an order.  O(log n).
-    pub fn push_back(&mut self, order: OrderPtr) {
+    pub fn push_back(&mut self, order: crate::order::OrderPtr<P>) {
         let id = order.lock().unwrap().order_id();
         self.heap.push(Reverse(id));
         self.order_map.insert(id, order);
@@ -56,7 +55,7 @@ impl OrderQueue {
     ///
     /// Pops and discards any stale heap entries (those already removed from
     /// the map) before returning.  Returns `None` on an empty queue.
-    pub fn front(&mut self) -> Option<OrderPtr> {
+    pub fn front(&mut self) -> Option<crate::order::OrderPtr<P>> {
         while let Some(&Reverse(id)) = self.heap.peek() {
             if self.order_map.contains_key(&id) {
                 return self.order_map.get(&id).cloned();

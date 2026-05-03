@@ -12,32 +12,40 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 
+use crate::price_trait::FixedPrecisionPriceLike;
+
 use crate::messages::ModifyOrderMsg;
 use crate::order::{new_order_ptr, OrderPtr};
 use crate::order_queue::OrderQueue;
-use crate::price::Price;
+// Price type is now generic; import the desired type in your module.
 use crate::trade::{Trade, TradeSide};
 use crate::types::{OrderId, OrderType, Side, Volume};
 
 // ── OrderBook ─────────────────────────────────────────────────────────────────
 
-pub struct OrderBook {
+pub struct OrderBook<P>
+where
+    P: crate::price_trait::FixedPrecisionPriceLike,
+{
     symbol: String,
     /// All live orders indexed by id.
-    order_map: HashMap<OrderId, OrderPtr>,
+    order_map: HashMap<OrderId, crate::order::OrderPtr<P>>,
     /// Bid price levels (ascending key; iterate in reverse for best bid).
-    bid_queue_map: BTreeMap<Price, OrderQueue>,
+    bid_queue_map: BTreeMap<P, OrderQueue<P>>,
     /// Ask price levels (ascending key; first entry is best ask).
-    ask_queue_map: BTreeMap<Price, OrderQueue>,
+    ask_queue_map: BTreeMap<P, OrderQueue<P>>,
     /// Aggregated visible volume per bid price level.
-    bid_volume_map: HashMap<Price, Volume>,
+    bid_volume_map: HashMap<P, Volume>,
     /// Aggregated visible volume per ask price level.
-    ask_volume_map: HashMap<Price, Volume>,
+    ask_volume_map: HashMap<P, Volume>,
     /// All trades executed by this book (newest last).
-    pub trades: Vec<Trade>,
+    pub trades: Vec<Trade<P>>,
 }
 
-impl OrderBook {
+impl<P> OrderBook<P>
+where
+    P: crate::price_trait::FixedPrecisionPriceLike,
+{
     pub fn new(symbol: impl Into<String>) -> Self {
         OrderBook {
             symbol: symbol.into(),
@@ -58,7 +66,7 @@ impl OrderBook {
 
     /// Add a new order.  IOC orders are matched immediately and never rest in
     /// the book; GFD orders rest and trigger a sweep of matchable levels.
-    pub fn add_order(&mut self, order: OrderPtr) -> bool {
+    pub fn add_order(&mut self, order: OrderPtr<P>) -> bool {
         let order_id = order.lock().unwrap().order_id();
 
         // Duplicate check.
@@ -149,7 +157,7 @@ impl OrderBook {
 
     /// Modify a resting order: cancel it and re-add with the new attributes
     /// while preserving its original `OrderType`.
-    pub fn update_order(&mut self, modify: &ModifyOrderMsg) -> bool {
+    pub fn update_order(&mut self, modify: &ModifyOrderMsg<P>) -> bool {
         let orig_type = match self.order_map.get(&modify.order_id) {
             Some(o) => o.lock().unwrap().order_type(),
             None    => return false,
@@ -168,7 +176,7 @@ impl OrderBook {
     }
 
     /// Return the aggregated visible volume at a price level on the given side.
-    pub fn volume_at_price(&self, price: Price, side: Side) -> Volume {
+    pub fn volume_at_price(&self, price: P, side: Side) -> Volume {
         match side {
             Side::Bid => self.bid_volume_map.get(&price).copied().unwrap_or(0),
             Side::Ask => self.ask_volume_map.get(&price).copied().unwrap_or(0),
@@ -183,7 +191,7 @@ impl OrderBook {
     // ── Private matching ──────────────────────────────────────────────────────
 
     /// `true` if an order on `side` at `price` can be matched immediately.
-    fn can_match(&self, side: Side, price: Price) -> bool {
+    fn can_match(&self, side: Side, price: P) -> bool {
         match side {
             Side::Bid => {
                 // Can match if best ask ≤ order price.
@@ -297,7 +305,7 @@ impl OrderBook {
 
     /// Immediate-or-Cancel matching: fill as much of `order` as possible right
     /// now; any unfilled remainder is silently discarded.
-    fn match_ioc_order(&mut self, order: OrderPtr) {
+    fn match_ioc_order(&mut self, order: OrderPtr<P>) {
         let otype = {
             let order_guard = order.lock().unwrap();
             order_guard.order_type()
@@ -455,7 +463,10 @@ impl OrderBook {
 
 // ── Display ───────────────────────────────────────────────────────────────────
 
-impl fmt::Display for OrderBook {
+impl<P> fmt::Display for OrderBook<P>
+where
+    P: FixedPrecisionPriceLike,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         const VOL_W: usize   = 6;
         const PRICE_W: usize = 9;
@@ -478,7 +489,7 @@ impl fmt::Display for OrderBook {
         )?;
 
         // Bids iterate highest-to-lowest (reverse BTreeMap).
-        let bids: Vec<(Price, Volume)> = self
+        let bids: Vec<(P, Volume)> = self
             .bid_queue_map
             .iter()
             .rev()
@@ -486,7 +497,7 @@ impl fmt::Display for OrderBook {
             .collect();
 
         // Asks iterate lowest-to-highest (natural BTreeMap order).
-        let asks: Vec<(Price, Volume)> = self
+        let asks: Vec<(P, Volume)> = self
             .ask_queue_map
             .iter()
             .map(|(p, _)| (*p, self.ask_volume_map.get(p).copied().unwrap_or(0)))
