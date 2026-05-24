@@ -122,8 +122,8 @@ fn run_network_mode(config_path: &str) -> Result<(), std::io::Error> {
     println!("Consumer: {}:{}", cfg.consumer_ip, cfg.consumer_port);
 
     // 1. Load and pack all messages into Packets.
-    let mut packets = Vec::new();
-    let mut cur_pkt = Packet::new();
+    let mut packets: Vec<Packet<Price>> = Vec::new();
+    let mut cur_pkt: Packet<Price> = Packet::new();
 
     let messages = parser::load_messages::<Price>(Path::new(&cfg.symbol_file))?;
     
@@ -165,12 +165,12 @@ fn run_network_mode(config_path: &str) -> Result<(), std::io::Error> {
     let processor_running = Arc::new(AtomicBool::new(true)); // For processor thread
 
     // 3. SPSC ring buffer (receiver → processor).
-    let (ring_producer, ring_consumer) = spsc_channel::<Packet>(RING_BUFFER_SIZE);
+    let (ring_producer, ring_consumer) = spsc_channel::<Packet<Price>>(RING_BUFFER_SIZE);
     // Clone the consumer so main can check is_empty()
     let ring_consumer_for_proc = ring_consumer.clone();
 
     // 4. Processor thread.
-    let exchange: ExchangeOrderBook  = ExchangeOrderBook::new(cfg.exchange_name.clone());
+    let exchange: ExchangeOrderBook<Price> = ExchangeOrderBook::new(cfg.exchange_name.clone());
     let perf_meta = PerfMeta {
         enabled:         cfg.perf_enabled,
         output_file:     cfg.perf_output_file.clone(),

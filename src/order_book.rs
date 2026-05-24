@@ -184,6 +184,32 @@ where
         }
     }
 
+    /// Return the best bid price (highest), if any resting bid exists.
+    pub fn best_bid(&self) -> Option<P> {
+        self.bid_queue_map.keys().next_back().copied()
+    }
+
+    /// Return the best ask price (lowest), if any resting ask exists.
+    pub fn best_ask(&self) -> Option<P> {
+        self.ask_queue_map.keys().next().copied()
+    }
+
+    /// Return the best bid price and its volume.
+    pub fn best_bid_with_volume(&self) -> Option<(P, Volume)> {
+        self.bid_queue_map.keys().next_back().map(|p| {
+            let vol = self.bid_volume_map.get(p).copied().unwrap_or(0);
+            (*p, vol)
+        })
+    }
+
+    /// Return the best ask price and its volume.
+    pub fn best_ask_with_volume(&self) -> Option<(P, Volume)> {
+        self.ask_queue_map.keys().next().map(|p| {
+            let vol = self.ask_volume_map.get(p).copied().unwrap_or(0);
+            (*p, vol)
+        })
+    }
+
     pub fn print(&self) {
         println!("{}", self);
     }

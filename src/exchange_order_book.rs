@@ -3,22 +3,23 @@
 /// Mirrors `ExchangeOrderBook.h` / `ExchangeOrderBook.cpp`.
 use std::collections::HashMap;
 
-use crate::messages::{AddOrderMsg, CancelOrderMsg, ModifyOrderMsg, SymbolMsg, Price};
+use crate::messages::{AddOrderMsg, CancelOrderMsg, ModifyOrderMsg, SymbolMsg};
 use crate::order_book::OrderBook;
 use crate::order::new_order_ptr;
+use crate::price_trait::FixedPrecisionPriceLike;
 use crate::types::{InstrumentId, Timestamp};
 
 // ── ExchangeOrderBook ─────────────────────────────────────────────────────────
 
-pub struct ExchangeOrderBook {
+pub struct ExchangeOrderBook<P: FixedPrecisionPriceLike> {
     exchange_name: String,
     /// instrument id → order book
-    instrument_map: HashMap<InstrumentId, OrderBook<Price>>,
+    instrument_map: HashMap<InstrumentId, OrderBook<P>>,
     /// symbol name → instrument id
     symbol_map: HashMap<String, InstrumentId>,
 }
 
-impl ExchangeOrderBook {
+impl<P: FixedPrecisionPriceLike> ExchangeOrderBook<P> {
     pub fn new(name: impl Into<String>) -> Self {
         ExchangeOrderBook {
             exchange_name: name.into(),
@@ -28,7 +29,7 @@ impl ExchangeOrderBook {
     }
 
     /// Register (or re-register) a symbol/instrument.
-    pub fn add_update_symbol(&mut self, msg: &SymbolMsg<Price>) {
+    pub fn add_update_symbol(&mut self, msg: &SymbolMsg<P>) {
         let book = OrderBook::new(msg.symbol.clone());
         self.instrument_map.insert(msg.instrument_id, book);
         self.symbol_map.insert(msg.symbol.clone(), msg.instrument_id);
@@ -36,7 +37,7 @@ impl ExchangeOrderBook {
 
     /// Submit a new order.  Uses `now()` as the creation timestamp to mirror
     /// the C++ `ExchangeOrderBook::AddNewOrder` behaviour.
-    pub fn add_new_order(&mut self, msg: &AddOrderMsg<Price>) -> bool {
+    pub fn add_new_order(&mut self, msg: &AddOrderMsg<P>) -> bool {
         match self.instrument_map.get_mut(&msg.instrument_id) {
             None => false,
             Some(book) => {
@@ -55,7 +56,7 @@ impl ExchangeOrderBook {
     }
 
     /// Modify a resting order.
-    pub fn update_order(&mut self, msg: &ModifyOrderMsg<Price>) -> bool {
+    pub fn update_order(&mut self, msg: &ModifyOrderMsg<P>) -> bool {
         match self.instrument_map.get_mut(&msg.instrument_id) {
             None       => false,
             Some(book) => book.update_order(msg),

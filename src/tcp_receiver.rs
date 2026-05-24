@@ -11,7 +11,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::codec;
-use crate::messages::Packet;
+use crate::messages::{Packet, Price};
 use crate::ring_buffer::SpscProducer;
 
 // ── Spawn ─────────────────────────────────────────────────────────────────────
@@ -27,7 +27,7 @@ use crate::ring_buffer::SpscProducer;
 pub fn spawn(
     addr:           String,
     port:           u16,
-    producer:       SpscProducer<Packet>,
+    producer:       SpscProducer<Packet<Price>>,
     retry_count:    i32,
     retry_interval: u64,
     running:        Arc<AtomicBool>,
@@ -42,7 +42,7 @@ pub fn spawn(
 fn receiver_run(
     addr:           String,
     port:           u16,
-    producer:       SpscProducer<Packet>,
+    producer:       SpscProducer<Packet<Price>>,
     retry_count:    i32,
     retry_interval: u64,
     running:        Arc<AtomicBool>,

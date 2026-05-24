@@ -3,4 +3,12 @@ name = "market-data-order-book"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "market_data_order_book"
+path = "src/lib.rs"
+
+[[bin]]
+name = "market-data-order-book"
+path = "src/main.rs"
+
 [dependencies]

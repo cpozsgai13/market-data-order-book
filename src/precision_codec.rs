@@ -24,60 +24,21 @@ macro_rules! define_precision_codec {
     ($mod_name:ident, $places:literal) => {
         pub mod $mod_name {
             use crate::price::FixedPrecisionPrice;
-            use crate::types::{InstrumentId, OrderId, OrderType, Quantity, Side, Timestamp};
+            use crate::types::{OrderType, Side};
             use std::io::{self, Read, Write};
 
             // ── Price alias ────────────────────────────────────────────────────
             pub type Price = FixedPrecisionPrice<u64, $places>;
 
-            // ── Generic message types ─────────────────────────────────────────
-            #[derive(Debug, Clone)]
-            pub struct SymbolMsg<P> {
-                pub symbol:        String,
-                pub instrument_id: InstrumentId,
-                pub last_price:    P,
-            }
+            // ── Re-export canonical generic message types ──────────────────────
+            pub use crate::messages::{
+                AddOrderMsg, CancelOrderMsg, CoreMessage, ModifyOrderMsg, SymbolMsg,
+            };
 
-            #[derive(Debug, Clone)]
-            pub struct AddOrderMsg<P> {
-                pub instrument_id:  InstrumentId,
-                pub order_id:       OrderId,
-                pub price:          P,
-                pub quantity:       Quantity,
-                pub side:           Side,
-                pub order_type:     OrderType,
-                pub update_time_ns: Timestamp,
-            }
-
-            #[derive(Debug, Clone)]
-            pub struct ModifyOrderMsg<P> {
-                pub order_id:       OrderId,
-                pub instrument_id:  InstrumentId,
-                pub price:          P,
-                pub side:           Side,
-                pub quantity:       Quantity,
-                pub update_time_ns: Timestamp,
-            }
-
-            #[derive(Debug, Clone)]
-            pub struct CancelOrderMsg {
-                pub order_id:      OrderId,
-                pub instrument_id: InstrumentId,
-            }
-
-            #[derive(Debug, Clone)]
-            pub enum CoreMessage<P> {
-                Symbol(SymbolMsg<P>),
-                AddOrder(AddOrderMsg<P>),
-                ModifyOrder(ModifyOrderMsg<P>),
-                CancelOrder(CancelOrderMsg),
-            }
-
-            // ── Type aliases for this precision ──────────────────────────────
-            pub type SymbolMsgAlias = SymbolMsg<Price>;
-            pub type AddOrderMsgAlias = AddOrderMsg<Price>;
-            pub type ModifyOrderMsgAlias = ModifyOrderMsg<Price>;
+            // ── Precision-specific type aliases ───────────────────────────────
             pub type CoreMessageAlias = CoreMessage<Price>;
+            /// Precision-specific Packet: all messages carry `Price` for this tier.
+            pub type Packet = crate::messages::Packet<Price>;
 
             // ── Wire-format constants ──────────────────────────────────────────
             pub const HEADER_SIZE: usize        = 4;
@@ -90,18 +51,6 @@ macro_rules! define_precision_codec {
             const TAG_MODIFY: u8 = 2;
             const TAG_CANCEL: u8 = 3;
 
-            /// Ordered collection of `CoreMessage`s transported over TCP.
-            #[derive(Debug, Clone, Default)]
-            pub struct Packet {
-                pub messages: Vec<CoreMessageAlias>,
-            }
-
-            impl Packet {
-                pub fn new() -> Self { Packet { messages: Vec::new() } }
-                pub fn push(&mut self, msg: CoreMessageAlias) { self.messages.push(msg); }
-                pub fn is_empty(&self) -> bool { self.messages.is_empty() }
-                pub fn len(&self) -> usize { self.messages.len() }
-            }
 
             // ── Encode ────────────────────────────────────────────────────────
 

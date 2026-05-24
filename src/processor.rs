@@ -11,23 +11,26 @@ use std::sync::Arc;
 use std::thread;
 
 use crate::exchange_order_book::ExchangeOrderBook;
-use crate::messages::{CoreMessage, Price};
+use crate::messages::{CoreMessage, Packet};
 use crate::perf_counter::{PerfCounter, PerfMeta};
+use crate::price_trait::FixedPrecisionPriceLike;
 use crate::ring_buffer::SpscConsumer;
-use crate::messages::Packet;
 
 // ── Spawn ─────────────────────────────────────────────────────────────────────
 
 /// Spawn the processor thread.
 ///
-/// Returns a `JoinHandle<ExchangeOrderBook>` — call `.join().unwrap()` after
+/// Returns a `JoinHandle<ExchangeOrderBook<P>>` — call `.join().unwrap()` after
 /// stopping all threads to retrieve the final order-book state.
-pub fn spawn(
-    exchange: ExchangeOrderBook,
-    consumer: SpscConsumer<Packet>,
+pub fn spawn<P>(
+    exchange: ExchangeOrderBook<P>,
+    consumer: SpscConsumer<Packet<P>>,
     perf_meta: PerfMeta,
     running:  Arc<AtomicBool>,
-) -> thread::JoinHandle<ExchangeOrderBook> {
+) -> thread::JoinHandle<ExchangeOrderBook<P>>
+where
+    P: FixedPrecisionPriceLike + Send + 'static,
+{
     thread::spawn(move || {
         processor_run(exchange, consumer, perf_meta, running)
     })
@@ -35,12 +38,15 @@ pub fn spawn(
 
 // ── Thread body ───────────────────────────────────────────────────────────────
 
-fn processor_run(
-    mut exchange: ExchangeOrderBook,
-    consumer:     SpscConsumer<Packet>,
+fn processor_run<P>(
+    mut exchange: ExchangeOrderBook<P>,
+    consumer:     SpscConsumer<Packet<P>>,
     perf_meta:    PerfMeta,
     running:      Arc<AtomicBool>,
-) -> ExchangeOrderBook {
+) -> ExchangeOrderBook<P>
+where
+    P: FixedPrecisionPriceLike + Send + 'static,
+{
     let mut perf = if perf_meta.enabled {
         Some(PerfCounter::new(perf_meta.output_file.clone()))
     } else {
@@ -67,7 +73,6 @@ fn processor_run(
         }
     }
     println!("[Processor] running flag is now false, draining remaining packets...");
-    // Drain any remaining packets enqueued before `running` was cleared.
     while let Some(packet) = consumer.pop() {
         println!("[Processor] draining packet after shutdown");
         for (i, msg) in packet.messages.iter().enumerate() {
@@ -82,7 +87,6 @@ fn processor_run(
     }
     println!("[Processor] exiting thread, returning ExchangeOrderBook");
 
-    // Print and persist performance stats if enabled.
     if let Some(ref p) = perf {
         p.print_stats();
         p.write_to_file();
@@ -91,21 +95,27 @@ fn processor_run(
     exchange
 }
 
-fn process_packet(
-    packet:   Packet,
-    exchange: &mut ExchangeOrderBook,
+fn process_packet<P>(
+    packet:   Packet<P>,
+    exchange: &mut ExchangeOrderBook<P>,
     perf:     &mut Option<PerfCounter>,
-) {
+)
+where
+    P: FixedPrecisionPriceLike,
+{
     for msg in packet.messages {
         process_message(msg, exchange, perf);
     }
 }
 
-fn process_message(
-    msg:      CoreMessage<Price>,
-    exchange: &mut ExchangeOrderBook,
+fn process_message<P>(
+    msg:      CoreMessage<P>,
+    exchange: &mut ExchangeOrderBook<P>,
     perf:     &mut Option<PerfCounter>,
-) {
+)
+where
+    P: FixedPrecisionPriceLike,
+{
     match msg {
         CoreMessage::Symbol(s) => {
             println!("[Processor] processing Symbol message: {} (id={})", s.symbol, s.instrument_id);

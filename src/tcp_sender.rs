@@ -16,7 +16,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::codec;
-use crate::messages::Packet;
+use crate::messages::{Packet, Price};
 
 /// Default internal queue depth.  Mirrors `RING_BUFFER_SIZE` (2^20).
 const QUEUE_DEPTH: usize = 1 << 20;
@@ -27,14 +27,14 @@ const NANOS_PER_SEC: u64 = 1_000_000_000;
 // ── TcpSender ─────────────────────────────────────────────────────────────────
 
 pub struct TcpSender {
-    tx:      SyncSender<Packet>,
+    tx:      SyncSender<Packet<Price>>,
     running: Arc<AtomicBool>,
 }
 
 impl TcpSender {
     /// Push a packet into the sender's internal queue.
     /// Returns `false` if the queue is full.
-    pub fn enqueue(&self, packet: Packet) -> bool {
+    pub fn enqueue(&self, packet: Packet<Price>) -> bool {
         self.tx.try_send(packet).is_ok()
     }
 
@@ -54,7 +54,7 @@ pub fn spawn(
     port:     u16,
     rate_pps: i32,
 ) -> (TcpSender, thread::JoinHandle<()>) {
-    let (tx, rx) = mpsc::sync_channel::<Packet>(QUEUE_DEPTH);
+    let (tx, rx) = mpsc::sync_channel::<Packet<Price>>(QUEUE_DEPTH);
     let running  = Arc::new(AtomicBool::new(true));
     let running2 = Arc::clone(&running);
 
@@ -68,7 +68,7 @@ pub fn spawn(
 // ── Thread body ───────────────────────────────────────────────────────────────
 
 fn sender_run(
-    rx:       Receiver<Packet>,
+    rx:       Receiver<Packet<Price>>,
     port:     u16,
     rate_pps: i32,
     running:  Arc<AtomicBool>,
